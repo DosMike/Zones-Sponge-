@@ -16,13 +16,15 @@ import de.dosmike.sponge.zones.events.ZoneEvent.Direction;
 
 public class PlayerExtra {
 	Set<Zone> inzone = new HashSet<>();
-	Player player;
-	
+	//Player player;
+	UUID plid;
+	Player getPlayer() { return Sponge.getServer().getPlayer(plid).orElse(null); } //should not be able to return null, disconnected player are removed
 	PlayerExtra(Player forPlayer) {
-		player=forPlayer;
+		plid=forPlayer.getUniqueId();
 	}
 	
 	void updateZones(Collection<Zone> in, Collection<Zone> out) {
+		Player player = getPlayer();
 		Cause eventcause = 
 				Cause.builder().suggestNamed("LocationChanged", 
 				Sponge.getPluginManager().getPlugin("dosmike_zones").orElse(null)).build();
@@ -67,12 +69,13 @@ public class PlayerExtra {
 	
 	/** manually calling this will force re-enter a Player to all zones he's currently in */
 	public void loosePlayer(Cause cause) {
-		Zones.loosePlayer(player.getUniqueId());
+		Player player = getPlayer();
 		inzone.forEach(new Consumer<Zone>() {
 			public void accept(Zone z) {
 				//create event
 				Sponge.getEventManager().post(new ZoneEvent(player, z, Direction.LEAVE, cause));
 			}
 		});
+		Zones.loosePlayer(player.getUniqueId());
 	}
 }

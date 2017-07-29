@@ -50,7 +50,7 @@ public abstract class Zone {
 		Set<Player> result = new HashSet<>();
 		for (PlayerExtra ex : Zones.extra.values())
 			if (ex.inzone.contains(this))
-				result.add(ex.player);
+				result.add(ex.getPlayer());
 		return result;
 	}
 	

@@ -10,17 +10,17 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.concurrent.TimeUnit;
 
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.config.ConfigDir;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.event.Listener;
-import org.spongepowered.api.event.cause.Cause;
-import org.spongepowered.api.event.cause.NamedCause;
 import org.spongepowered.api.event.game.GameReloadEvent;
 import org.spongepowered.api.event.game.state.GameStartedServerEvent;
+import org.spongepowered.api.event.game.state.GameStoppingEvent;
 import org.spongepowered.api.plugin.Plugin;
+import org.spongepowered.api.scheduler.Task;
 import org.spongepowered.api.text.Text;
 import org.spongepowered.api.text.format.TextColor;
 import org.spongepowered.api.text.format.TextColors;
@@ -31,55 +31,26 @@ import com.google.common.reflect.TypeToken;
 import com.google.inject.Inject;
 
 import de.dosmike.sponge.zones.handler.CommandRegister;
+import de.dosmike.sponge.zones.listener.CommandZoneListener;
 import de.dosmike.sponge.zones.listener.PlayerConnectionListener;
+import de.dosmike.sponge.zones.listener.WandSelectListener;
 import ninja.leaping.configurate.ConfigurationNode;
 import ninja.leaping.configurate.ConfigurationOptions;
 import ninja.leaping.configurate.commented.CommentedConfigurationNode;
 import ninja.leaping.configurate.hocon.HoconConfigurationLoader;
 import ninja.leaping.configurate.loader.ConfigurationLoader;
+import ninja.leaping.configurate.objectmapping.DefaultObjectMapperFactory;
 import ninja.leaping.configurate.objectmapping.serialize.TypeSerializerCollection;
 import ninja.leaping.configurate.objectmapping.serialize.TypeSerializers;
 
-@Plugin(id = "dosmike_zones", name = "Zones", version = "1.0")
+@Plugin(id = "dosmike_zones", name = "Zones", version = "1.1")
 public class Zones {
 	/** Not doing anything, empty Java main */
 	public static void main(String[] args) {
 		System.out.println("This jar can not be run as executable!");
 	}
 	public static boolean verboseEvents=false;
-	Stoppable motionGuard = new Stoppable() {
-		public void onLoop() {
-			long t0 = System.currentTimeMillis();
-			
-			Sponge.getServer().getOnlinePlayers().forEach(new Consumer<Player>() {
-				public void accept(Player p) {
-					//if (verboseEvents) log("Fetching zones for "+p.getName());
-					if (p.isOnline() && p.isLoaded()) {
-						Set<Zone> inside = new HashSet<>(), outside = new HashSet<>();
-						zonelist.forEach(new Consumer<Zone>() {
-							public void accept(Zone z) {
-								//if (verboseEvents) log("Checking zone");
-								if (z.contains(p.getLocation())) {
-									inside.add(z);
-								} else {
-									outside.add(z);
-								}
-							}
-						});
-						getPlayer(p.getUniqueId()).get().updateZones(inside, outside);
-					}
-				}
-			});
-			
-			//timing and sleeping stuff (at least 10ms)
-			t0 = System.currentTimeMillis()-t0;
-			if (t0>50) {
-				log(TextColors.YELLOW, "! Location monitoring took "+t0+"ms");
-			}
-			t0 = 50-t0; if (t0<10) t0=10;
-			try { Thread.sleep(t0); } catch (Exception e) {}
-		};
-	};
+	Task motionGuard=null;
 	
 	static void log(Object... message) {
 		Text.Builder tb = Text.builder();
@@ -92,7 +63,10 @@ public class Zones {
 			else
 				tb.append(Text.of(o));
 		}
-		Sponge.getServer().getBroadcastChannel().send(tb.build());
+		if (verboseEvents)
+			Sponge.getServer().getBroadcastChannel().send(tb.build());
+		else
+			Sponge.getServer().getConsole().sendMessage(tb.build());
 	}
 	
 	static Map<UUID, PlayerExtra> extra = new HashMap<>();
@@ -118,18 +92,52 @@ public class Zones {
 		
 		//add event listener
 		Sponge.getEventManager().registerListeners(this, new PlayerConnectionListener());
+		Sponge.getEventManager().registerListeners(this, new WandSelectListener());
+		
+		Sponge.getEventManager().registerListeners(this, new CommandZoneListener());
 		
 		//register commands
 		CommandRegister.RegisterCommands(this);
 		
 		//load zones
-		//TypeSerializers.getDefaultSerializers().registerType(TypeToken.of(BlockZone.class), new BlockZoneSerializer());
+		zoneSerializer.registerType(TypeToken.of(BlockZone.class), new BlockZoneSerializer());
+		zoneSerializer.registerType(TypeToken.of(CommandZone.class), new CommandZoneSerializer());
 		loadZones();
 		
 		//start timer for locations
-		motionGuard.start();
+		Task.builder().execute(() -> {
+			long t0 = System.currentTimeMillis();
+			
+			Sponge.getServer().getOnlinePlayers().forEach(p -> {
+				if (p.isOnline() && p.isLoaded()) {
+					Set<Zone> inside = new HashSet<>(), outside = new HashSet<>();
+					zonelist.forEach(z -> {
+						if (z.contains(p.getLocation())) {
+							inside.add(z);
+						} else {
+							outside.add(z);
+						}
+					});
+					getPlayer(p.getUniqueId()).get().updateZones(inside, outside);
+				}
+			});
+			
+			//timing
+			t0 = System.currentTimeMillis()-t0;
+			if (t0>50) {
+				log(TextColors.YELLOW, "! Location monitoring took "+t0+"ms");
+			}
+		}).interval(50, TimeUnit.MILLISECONDS).name("Zones - Motion Guard").submit(this);
 		
 		log(TextColors.YELLOW, "We're done loading");
+	}
+	
+	@Listener
+	public void onServerHalt(GameStoppingEvent event) {
+		if (motionGuard != null) motionGuard.cancel();
+		Set<UUID> keys = extra.keySet();
+		for (UUID key : keys)
+			extra.get(key).loosePlayer(event.getCause());
 	}
 	
 	static Set<Zone> zonelist = new HashSet<>();
@@ -161,7 +169,7 @@ public class Zones {
 	}
 	
 	/** Convenience function for getPlayer(p.getUniqueId()).get().getZones(); */
-	public Collection<Zone> getZonesFor(Player p) {
+	public static Collection<Zone> getZonesFor(Player p) {
 		Optional<PlayerExtra> ex = getPlayer(p.getUniqueId());
 		return ex.isPresent()?ex.get().getZones():new HashSet<>(); 
 	}
@@ -173,7 +181,7 @@ public class Zones {
 	 *       //Do something
 	 *     }
 	 *   }</pre> */
-	public Collection<Zone> getZonesFor(String key) {
+	public static Collection<Zone> getZonesFor(String key) {
 		Set<Zone> result = new HashSet<>();
 		for (Zone z : zonelist)
 			if (z.containsKey(key))
@@ -188,14 +196,14 @@ public class Zones {
 	 *       //Do something
 	 *     }
 	 *   }</pre> */
-	public Collection<Zone> getZonesFor(String key, Serializable value) {
+	public static Collection<Zone> getZonesFor(String key, Serializable value) {
 		Set<Zone> result = new HashSet<>();
 		for (Zone z : zonelist)
 			if (z.containsKey(key) && z.get(key).equals(value))
 				result.add(z);
 		return result;
 	}
-	public Collection<Zone> getZonesAt(Location<World> location) {
+	public static Collection<Zone> getZonesAt(Location<World> location) {
 		Set<Zone> result = new HashSet<>();
 		for (Zone z : zonelist)
 			if (z.contains(location))
@@ -205,9 +213,10 @@ public class Zones {
 	
 	@Listener
 	public void reload(GameReloadEvent event) {
-		Cause eventcause = event.getCause().with(NamedCause.of("Reload", this));
 		Zones.removeZone(Zone.class); //remove all zones
-		while (extra.size()>0) extra.get(0).loosePlayer(eventcause);
+		Set<UUID> keys = extra.keySet();
+		for (UUID key : keys)
+			extra.get(key).loosePlayer(event.getCause());
 		loadZones();
 	}
 	
@@ -215,21 +224,19 @@ public class Zones {
 	@ConfigDir(sharedRoot = false)
 	private Path configDir;
 	
+	public static TypeSerializerCollection zoneSerializer = TypeSerializers.getDefaultSerializers().newChild();
+	
 	void loadZones() {
 		Path zoneFile = configDir.resolve("saved.zones");
 		ConfigurationLoader<CommentedConfigurationNode> loader =
 				  HoconConfigurationLoader.builder().setPath(zoneFile).build();
-		TypeSerializerCollection serializers = TypeSerializers.getDefaultSerializers().newChild();
 		
-		serializers.registerType(TypeToken.of(BlockZone.class), new BlockZoneSerializer());
-		
-		ConfigurationOptions options = ConfigurationOptions.defaults().setSerializers(serializers);
+		ConfigurationOptions options = ConfigurationOptions.defaults().setSerializers(zoneSerializer);
 		ConfigurationNode root;
 		try {
 			root = loader.load(options);
 			int i=0; ConfigurationNode n;
 			for(;;) { n=root.getNode("Zones", String.valueOf(++i)); if (n.isVirtual()) break; //sloppy for each in virtual environment
-				log("Loading "+i+"...");
 				try {
 					@SuppressWarnings("unchecked") // we expect to only load zones, if it fails a plugin is missing and we catch that, so no need to worry
 					Class<? extends Zone> clz = (Class<? extends Zone>)Class.forName(n.getNode("class").getString());
@@ -238,10 +245,7 @@ public class Zones {
 					log(TextColors.RED, "Plugin-zone of type " + n.getNode("class").getString() + " can't be loaded. Is the plugin missing?");
 				}
 			}
-//			for (ConfigurationNode n : lst) {
-//				log("loading ["+n.getKey() + "]");
-//				zonelist.add((Zone)n.getValue()); //should only contain zones
-//			}
+			log ("Loaded "+zonelist.size()+" Zones.");
 		} catch (Exception e) {
 			log(TextColors.RED, "Failed to load config!");
 			e.printStackTrace();
@@ -252,16 +256,11 @@ public class Zones {
 		Path zoneFile = configDir.resolve("saved.zones");
 		ConfigurationLoader<CommentedConfigurationNode> loader =
 				  HoconConfigurationLoader.builder().setPath(zoneFile).build();
-		TypeSerializerCollection serializers = TypeSerializers.getDefaultSerializers().newChild();
 		
-		serializers.registerType(TypeToken.of(BlockZone.class), new BlockZoneSerializer());
-		
-		ConfigurationOptions options = ConfigurationOptions.defaults().setSerializers(serializers);
+		ConfigurationOptions options = ConfigurationOptions.defaults().setSerializers(zoneSerializer);
+		options.setObjectMapperFactory(DefaultObjectMapperFactory.getInstance());
 		ConfigurationNode root = loader.createEmptyNode(options);
-		//ConfigurationNode root = loader.createEmptyNode();
 		try {
-			//log("Look at that config dir: " + configDir.toString());
-			//root.setValue(zonelist);
 			Iterator<Zone> it = zonelist.iterator();
 			for (int i = 0; i < zonelist.size() && it.hasNext(); i++) {
 				it.next().serialize(root.getNode("Zones", String.valueOf(i+1)));

@@ -58,99 +58,22 @@ public class ZoneCommand implements CommandExecutor {
 		Optional<PlayerExtra> extra = Zones.getPlayer(p.getUniqueId());
 		
 		String tmp;
-		ProfileProperty hi=null;
-		Location<World> low=null;
-		Location<World> high=null;
 		
 		switch (arg0.get()) {
 		case "pos1":
 		case "from":
 		case "1":
-			tmp = loc2str(p.getLocation());
-			p.getProfile().getPropertyMap().removeAll("dosmike_zones_selection");
-			p.getProfile().getPropertyMap().put("dosmike_zones_selection", ProfileProperty.of("low", tmp));
-			msg(p, "Position 1 set to " + tmp);
+			set1(p, p.getWorld().getLocation(p.getLocation().getBlockPosition().toDouble().sub(0, 0.1, 0)));
 			break;
 		case "pos2":
 		case "to":
 		case "2":
-			tmp = loc2str(p.getLocation());
-			for (ProfileProperty pp : p.getProfile().getPropertyMap().get("dosmike_zones_selection")) {
-				if (pp.getName().equals("low")) {
-					//msg (p, "L1 was " + pp.getValue());
-					low = str2loc(pp.getValue());
-				} else if (pp.getName().equals("high"))
-					hi = pp;
-			}
-			if (low==null) {
-				msg(p, "Set position 1 first");
-				return CommandResult.success();
-			}
-			if (!low.getExtent().equals(p.getLocation().getExtent())) {
-				msg(p, "Selection can not span multiple worlds");
-				return CommandResult.success();
-			}
-			if (hi!=null) p.getProfile().getPropertyMap().get("dosmike_zones_selection").remove(hi); //delete hi to prevent duplicates
-			p.getProfile().getPropertyMap().put("dosmike_zones_selection", ProfileProperty.of("high", tmp));
-			msg(p, "Position 2 set to " + tmp);
-			msg(p, "Selection: dx"+(Math.abs(p.getLocation().getBlockX()-low.getBlockX())+1)+
-							" dy"+(Math.abs(p.getLocation().getBlockY()-low.getBlockY()))+
-							" dz"+(Math.abs(p.getLocation().getBlockZ()-low.getBlockZ())+1));
+			set2(p, p.getWorld().getLocation(p.getLocation().getBlockPosition().toDouble().add(0, 1.9, 0)));
 			break;
 		case "create":
 		case "add":
 		case "c":
-			/*Class<? extends Zone> zk = BlockZone.class;
-			if (args.getOne("ZoneID").isPresent()) {
-				try {
-					Class<?> c = Class.forName((String) args.getOne("ZoneID").get());
-					if (Zone.class.isAssignableFrom(c)) {
-						zk=(Class<? extends Zone>) c;
-					}
-				} catch (Exception e) {
-					msg(p, "No zone type for '"+args.getOne("ZoneID")+"'");
-					break;
-				}
-			}*/
-			for (ProfileProperty pp : p.getProfile().getPropertyMap().get("dosmike_zones_selection")) {
-				if (pp.getName().equals("low")) {
-					low = str2loc(pp.getValue());
-				} else if (pp.getName().equals("high")) {
-					high = str2loc(pp.getValue());
-				}
-			}
-			if (low==null) {
-				msg(p, "Set position 1 first");
-				return CommandResult.success();
-			} else if (high==null) {
-				msg(p, "Set position 2 first");
-				return CommandResult.success();
-			} else {
-				//sort locations
-				double l,h,x1,x2,y1,y2,z1,z2;
-				l = low.getBlockX();
-				h = high.getBlockX();
-				x1 = l<h ? l : h;
-				x2 = l>h ? l : h;
-				l = low.getBlockY();
-				h = high.getBlockY();
-				y1 = l<h ? l : h;
-				y2 = l>h ? l : h;
-				l = low.getBlockZ();
-				h = high.getBlockZ();
-				z1 = l<h ? l : h;
-				z2 = l>h ? l : h;
-				
-				//fill locations
-				low=low.getExtent().getLocation(x1      , y1 - 0.1, z1      );
-				high=high.getExtent().getLocation(x2 + 1.0, y2 + 1.9, z2 + 1.0);
-			}
-			BlockZone newblockzone = new BlockZone(low,high);
-			p.getProfile().getPropertyMap().removeAll("dosmike_zones_selection");
-			Zones.addZone(newblockzone);
-			msg(p, "Created new Block Zone: [", 
-					Text.builder(newblockzone.getID().toString()).onShiftClick(TextActions.insertText(newblockzone.getID().toString())).build(),
-					"]");
+			create(p);
 			break;
 		case "info":
 		case "i":
@@ -205,17 +128,92 @@ public class ZoneCommand implements CommandExecutor {
 		return CommandResult.success();
 	}
 	
-	private Location<World> str2loc (String s) {
+	private static Location<World> str2loc (String s) {
 		String[] p = s.split("/"); return Sponge.getServer().getWorld(p[0]).get().getLocation(Double.parseDouble(p[1]), Double.parseDouble(p[2]), Double.parseDouble(p[3]));
 	}
-	private String loc2str (Location<World> l) {
+	private static String loc2str (Location<World> l) {
 		return l.getExtent().getName() + "/" + l.getX() + "/" + l.getY() + "/" + l.getZ();
 	}
-	private void msg(CommandSource src, Object... msg) {
+	private static void msg(CommandSource src, Object... msg) {
 		Text result = Text.of(TextColors.AQUA, "[Zones] ");
 		Text.Builder builder = Text.builder();
 		builder.append(result);
 		builder.append(Text.of(msg));
 		src.sendMessage(builder.build());
+	}
+	
+	public static void set1(Player source, Location<World> from) {
+		String tmp = loc2str(from);
+		source.getProfile().getPropertyMap().removeAll("dosmike_zones_selection");
+		source.getProfile().getPropertyMap().put("dosmike_zones_selection", ProfileProperty.of("low", tmp));
+		msg(source, "Position 1 set to " + tmp);
+	}
+	public static void set2(Player source, Location<World> to) {
+		Location<World> low=null;
+		ProfileProperty hi=null;
+		String tmp = loc2str(to);
+		for (ProfileProperty pp : source.getProfile().getPropertyMap().get("dosmike_zones_selection")) {
+			if (pp.getName().equals("low")) {
+				//msg (p, "L1 was " + pp.getValue());
+				low = str2loc(pp.getValue());
+			} else if (pp.getName().equals("high"))
+				hi = pp;
+		}
+		if (low==null) {
+			msg(source, "Set position 1 first");
+			return;
+		}
+		if (!low.getExtent().equals(to.getExtent())) {
+			msg(source, "Selection can not span multiple worlds");
+			return;
+		}
+		if (hi!=null) source.getProfile().getPropertyMap().get("dosmike_zones_selection").remove(hi); //delete hi to prevent duplicates
+		source.getProfile().getPropertyMap().put("dosmike_zones_selection", ProfileProperty.of("high", tmp));
+		msg(source, "Position 2 set to " + tmp);
+		msg(source, "Selection: x"+(Math.abs(to.getBlockX()-low.getBlockX()))+
+						" y"+(Math.abs(to.getBlockY()-low.getBlockY()))+
+						" z"+(Math.abs(to.getBlockZ()-low.getBlockZ())));
+	}
+	public static void create(Player source) {
+		Location<World> low=null, high=null;
+		for (ProfileProperty pp : source.getProfile().getPropertyMap().get("dosmike_zones_selection")) {
+			if (pp.getName().equals("low")) {
+				low = str2loc(pp.getValue());
+			} else if (pp.getName().equals("high")) {
+				high = str2loc(pp.getValue());
+			}
+		}
+		if (low==null) {
+			msg(source, "Set position 1 first");
+			return;
+		} else if (high==null) {
+			msg(source, "Set position 2 first");
+			return;
+		} else {
+			//sort locations
+			double l,h,x1,x2,y1,y2,z1,z2;
+			l = low.getBlockX();
+			h = high.getBlockX();
+			x1 = l<h ? l : h;
+			x2 = l>h ? l : h;
+			l = low.getBlockY();
+			h = high.getBlockY();
+			y1 = l<h ? l : h;
+			y2 = l>h ? l : h;
+			l = low.getBlockZ();
+			h = high.getBlockZ();
+			z1 = l<h ? l : h;
+			z2 = l>h ? l : h;
+			
+			//fill locations
+			low=low.getExtent().getLocation(x1, y1, z1);
+			high=high.getExtent().getLocation(x2+1.0, y2, z2+1.0);
+		}
+		BlockZone newblockzone = new BlockZone(low,high);
+		source.getProfile().getPropertyMap().removeAll("dosmike_zones_selection");
+		Zones.addZone(newblockzone);
+		msg(source, "Created new Block Zone: [", 
+				Text.builder(newblockzone.getID().toString()).onShiftClick(TextActions.insertText(newblockzone.getID().toString())).build(),
+				"]");
 	}
 }

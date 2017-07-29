@@ -21,10 +21,6 @@ public class BlockZoneSerializer extends ZoneSerializer<BlockZone> {
 		Location<World> high = str2loc(cfg.getNode("High").getString());
 		return new BlockZone(low, high);
 	}
-
-	
-	//because locations can not be serialized?
-	//why even bother with all that dataserializable crap?
 	
 	private Location<World> str2loc (String s) {
 		String[] p = s.split("/"); return Sponge.getServer().getWorld(p[0]).get().getLocation(Double.parseDouble(p[1]), Double.parseDouble(p[2]), Double.parseDouble(p[3]));
