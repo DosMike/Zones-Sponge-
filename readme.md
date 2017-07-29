@@ -11,6 +11,6 @@ Here are the admin commands (Permission: dosmike.zones.edit):
 - //z <c|create|ass> - Create a new Zone of type BlockZone and output UUID (shift clickable)
 - //z <delete|remove> <UUID|*> - Remove zone with given UUID or all Zones you're currently standing in if using *
 
-#### If you are a server owner or a developer, please check the [wiki](./wiki)
+#### If you are a server owner or a developer, please check the [wiki](https://github.com/DosMike/Zones-Sponge-/wiki)
 
 This plugin offers some functiallity for server owners without any need to write code, just edit the config to make zones do stuff
