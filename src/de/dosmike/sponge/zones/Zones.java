@@ -43,7 +43,7 @@ import ninja.leaping.configurate.objectmapping.DefaultObjectMapperFactory;
 import ninja.leaping.configurate.objectmapping.serialize.TypeSerializerCollection;
 import ninja.leaping.configurate.objectmapping.serialize.TypeSerializers;
 
-@Plugin(id = "dosmike_zones", name = "Zones", version = "1.1")
+@Plugin(id = "dosmike_zones", name = "Zones", version = "1.2")
 public class Zones {
 	/** Not doing anything, empty Java main */
 	public static void main(String[] args) {
@@ -51,6 +51,7 @@ public class Zones {
 	}
 	public static boolean verboseEvents=false;
 	Task motionGuard=null;
+	static Zones instance;
 	
 	static void log(Object... message) {
 		Text.Builder tb = Text.builder();
@@ -90,6 +91,7 @@ public class Zones {
 		log(TextColors.YELLOW, "Wellcome to the zone!");
 		log(TextColors.YELLOW, "Registering commands and loading zones...");
 		
+		instance = this;
 		//add event listener
 		Sponge.getEventManager().registerListeners(this, new PlayerConnectionListener());
 		Sponge.getEventManager().registerListeners(this, new WandSelectListener());
