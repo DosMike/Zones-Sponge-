@@ -9,6 +9,7 @@ import java.util.function.Consumer;
 
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.event.CauseStackManager;
 import org.spongepowered.api.event.cause.Cause;
 
 import de.dosmike.sponge.zones.events.ZoneEvent;
@@ -25,25 +26,26 @@ public class PlayerExtra {
 	
 	void updateZones(Collection<Zone> in, Collection<Zone> out) {
 		Player player = getPlayer();
-		Cause eventcause = 
-				Cause.builder().suggestNamed("LocationChanged", 
-				Sponge.getPluginManager().getPlugin("dosmike_zones").orElse(null)).build();
-		Set<Zone> change = new HashSet<>();
-		//find zones player left
-		for (Zone z : inzone) if (!in.contains(z)) change.add(z);
-		for (Zone z : change) {
-			inzone.remove(z);
-			//create event
-			Sponge.getEventManager().post(new ZoneEvent(player, z, Direction.LEAVE, eventcause));
-		}
-		change.clear();
-		if (!player.isOnline() || !player.isLoaded()) return; //do not add zones to players disconnected
-		//find zones player entered
-		for (Zone z : in) if (!inzone.contains(z)) change.add(z);
-		for (Zone z : change) {
-			inzone.add(z);
-			//create event
-			Sponge.getEventManager().post(new ZoneEvent(player, z, Direction.ENTER, eventcause));
+
+		try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
+			frame.pushCause("LocationChanged");
+			Set<Zone> change = new HashSet<>();
+			//find zones player left
+			for (Zone z : inzone) if (!in.contains(z)) change.add(z);
+			for (Zone z : change) {
+				inzone.remove(z);
+				//create event
+				Sponge.getEventManager().post(new ZoneEvent(player, z, Direction.LEAVE, frame.getCurrentCause()));
+			}
+			change.clear();
+			if (!player.isOnline() || !player.isLoaded()) return; //do not add zones to players disconnected
+			//find zones player entered
+			for (Zone z : in) if (!inzone.contains(z)) change.add(z);
+			for (Zone z : change) {
+				inzone.add(z);
+				//create event
+				Sponge.getEventManager().post(new ZoneEvent(player, z, Direction.ENTER, frame.getCurrentCause()));
+			}
 		}
 	}
 	

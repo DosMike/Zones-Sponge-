@@ -43,7 +43,7 @@ import ninja.leaping.configurate.objectmapping.DefaultObjectMapperFactory;
 import ninja.leaping.configurate.objectmapping.serialize.TypeSerializerCollection;
 import ninja.leaping.configurate.objectmapping.serialize.TypeSerializers;
 
-@Plugin(id = "dosmike_zones", name = "Zones", version = "1.2")
+@Plugin(id = "dosmike_zones", name = "Zones", version = "1.2", description = "Framework for zone, fires events when entering/leaving a zone. Use //z to edit zones", authors = "DosMike")
 public class Zones {
 	/** Not doing anything, empty Java main */
 	public static void main(String[] args) {
