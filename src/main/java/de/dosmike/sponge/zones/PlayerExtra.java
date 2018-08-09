@@ -29,6 +29,7 @@ public class PlayerExtra {
 
 		try (CauseStackManager.StackFrame frame = Sponge.getCauseStackManager().pushCauseFrame()) {
 			frame.pushCause("LocationChanged");
+			frame.pushCause(player);
 			Set<Zone> change = new HashSet<>();
 			//find zones player left
 			for (Zone z : inzone) if (!in.contains(z)) change.add(z);
