@@ -38,13 +38,20 @@ public class BlockZone extends Zone {
 		high=a.getExtent().getLocation(x2, y2, z2);
 	}
 	
-	
 	public boolean contains(Location<World> dyn) {
 		if (low.getExtent()==null || !low.getExtent().equals(dyn.getExtent())) return false;
-		return (dyn.getX()>low.getX() && dyn.getY()>low.getY() && dyn.getZ()>low.getZ() &&
-				dyn.getX()<high.getX() && dyn.getY()<high.getY() && dyn.getZ()<high.getZ());
+		return (dyn.getX()>=low.getX() && dyn.getY()>=low.getY() && dyn.getZ()>=low.getZ() &&
+				dyn.getX()<=high.getX() && dyn.getY()<=high.getY() && dyn.getZ()<=high.getZ());
 	}
-	
+
+	public Location<World> getLow() {
+		return low;
+	}
+
+	public Location<World> getHigh() {
+		return high;
+	}
+
 	@Override
 	public World getWorld() {
 		return low==null?null:low.getExtent();
