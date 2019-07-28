@@ -1,0 +1,16 @@
+plugins {
+    id 'org.spongepowered.plugin' version '0.8.1'
+}
+
+group = 'de.dosmike.sponge' // TODO
+version = '1.2'
+
+sponge {
+    plugin {
+        id = 'dosmike_zones'
+    }
+}
+
+dependencies {
+    compile 'org.spongepowered:spongeapi:7.0.0'
+}
